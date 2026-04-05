@@ -6,25 +6,13 @@ from models.chat_session_model import ChatSession
 from models.chat_message_model import ChatMessage
 from langchain_core.messages import HumanMessage, AIMessage
 
-# 서버 분리 통신: langgraph_server 모듈을 찾을 수 있도록 환경 변수 추가 후 import (동일 Host의 경우를 상정한 로컬 프로시저 호출 방식)
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from langgraph_server._langgraph.entrypoint import app as langgraph_app
-
+# 서버 분리 통신: langgraph_sdk를 활용한 HTTP 클라이언트 접속
+from langgraph_sdk import get_sync_client
 
 def get_session_messages(db: Session, session_id: int) -> list[ChatMessage]:
     stmt = select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.id.asc())
     return db.scalars(stmt).all()
 
-def build_langchain_message(history: list[ChatMessage], current_user_message: str) -> list:
-    messages = []
-    for msg in history:
-        if msg.role == "user":
-            messages.append(HumanMessage(content=msg.content))
-        elif msg.role == "assistant":
-            messages.append(AIMessage(content=msg.content))
-            
-    messages.append(HumanMessage(content=current_user_message))
-    return messages
 
 def save_message(db: Session, session_id: int, role: str, content: str) -> ChatMessage:
     message = ChatMessage(session_id=session_id, role=role, content=content)
@@ -40,26 +28,39 @@ def generate_answer(db: Session, session_id: int, user_message: str, client_lat:
     if not session:
         raise ValueError("해당 session_id의 대화방이 존재하지 않습니다.")
     
-    # 2. 기존 기록 불러오기 및 LangChain 규격화
+    # 우선 DB에 유저 메시지를 먼저 저장해서 대화 목록(history)에 반영되도록 함
+    save_message(db, session_id, "user", user_message)
+    
+    # 기존 기록 불러오기
     history = get_session_messages(db, session_id)
-    messages = build_langchain_message(history, user_message)
     
-    # 3. LangGraph 서버 호출 (State 통째로 주입)
-    state = {
-        "messages": messages,
-        "client_lat": client_lat,
-        "client_lng": client_lng,
-        "user_language": user_language
-    }
+    # 2. HTTP 기반 LangGraph 서버(REST API) 클라이언트 연결
+    client = get_sync_client(url="http://127.0.0.1:2024")
     
-    # MSA 관점에서 HTTP(httpx) 호출을 권장하나 임시로 Local Procedure Call 방식으로 직접 연동합니다.
-    result = langgraph_app.invoke(state)
+    # LangGraph용 스레드를 생성
+    thread = client.threads.create()
+    
+    # LangGraph Server에 보낼 페이로드
+    messages_payload = [{"role": msg.role, "content": msg.content} for msg in history]
+    
+    # 3. LangGraph서버(agent)에 추론 요청(runs)을 생성하고 끝날 때까지 대기
+    result = client.runs.wait(
+        thread_id=thread["thread_id"],
+        assistant_id="agent",
+        input={
+            "messages": messages_payload,
+            "client_lat": client_lat,
+            "client_lng": client_lng,
+            "user_language": user_language
+        }
+    )
     
     # 4. 결론 반환
-    final_answer = result["messages"][-1].content
+    # 스레드가 처리 완료된 후 최신 상태(state)를 가져와서 가장 마지막 AIMessage 값을 가져옴
+    thread_state = client.threads.get_state(thread["thread_id"])
+    final_answer = thread_state["values"]["messages"][-1]["content"]
 
     # 5. DB 저장
-    save_message(db, session_id, "user", user_message)
     save_message(db, session_id, "assistant", final_answer)
     
     return final_answer

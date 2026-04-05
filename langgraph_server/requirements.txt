@@ -26,7 +26,6 @@ dataclasses-json==0.6.7
 datasets==4.8.3
 debugpy==1.8.20
 decorator==5.2.1
-decord==0.6.0
 dill==0.4.1
 distro==1.9.0
 dnspython==2.8.0

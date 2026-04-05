@@ -3,7 +3,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
 
-    DATABASE_URL: str = "sqlite:///./test.db"
+    DATABASE_URL: str
     OPENAI_API_KEY: str
     
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

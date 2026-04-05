@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "agent": "./_langgraph/entrypoint.py:app"
+  },
+  "env": "../fastapi_server/.env"
+}
