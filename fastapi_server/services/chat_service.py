@@ -30,22 +30,24 @@ def generate_answer(db: Session, session_id: int, user_message: str, client_lat:
     
     # 우선 DB에 유저 메시지를 먼저 저장해서 대화 목록(history)에 반영되도록 함
     save_message(db, session_id, "user", user_message)
+    langgraph_thread_id = session.langgraph_thread_id
     
-    # 기존 기록 불러오기
-    history = get_session_messages(db, session_id)
+    # 기존 기록 불러오기 -> thread는 문맥을 유지하기 때문에 이제 불러올 필요는 없을듯
+    # history = get_session_messages(db, session_id)
     
     # 2. HTTP 기반 LangGraph 서버(REST API) 클라이언트 연결
     client = get_sync_client(url="http://127.0.0.1:2024")
     
-    # LangGraph용 스레드를 생성
-    thread = client.threads.create()
-    
+
     # LangGraph Server에 보낼 페이로드
-    messages_payload = [{"role": msg.role, "content": msg.content} for msg in history]
-    
+    # 기존: history message 전체 전달
+    # 최신: 이제는 최신 user 메세지만 전달
+    # messages_payload = [{"role": msg.role, "content": msg.content} for msg in history]
+    messages_payload = [{"role": "user", "content": user_message}]
+
     # 3. LangGraph서버(agent)에 추론 요청(runs)을 생성하고 끝날 때까지 대기
     result = client.runs.wait(
-        thread_id=thread["thread_id"],
+        thread_id=langgraph_thread_id,
         assistant_id="agent",
         input={
             "messages": messages_payload,
@@ -57,7 +59,7 @@ def generate_answer(db: Session, session_id: int, user_message: str, client_lat:
     
     # 4. 결론 반환
     # 스레드가 처리 완료된 후 최신 상태(state)를 가져와서 가장 마지막 AIMessage 값을 가져옴
-    thread_state = client.threads.get_state(thread["thread_id"])
+    thread_state = client.threads.get_state(langgraph_thread_id)
     final_answer = thread_state["values"]["messages"][-1]["content"]
 
     # 5. DB 저장
@@ -67,7 +69,14 @@ def generate_answer(db: Session, session_id: int, user_message: str, client_lat:
 
 
 def create_chat_session(db: Session, title: str | None = None) -> ChatSession:
+
+    #채팅 세션 만들때, langgraph thread를 발급받아 DB에 함께 저장 (1대1 매핑으로)
     new_session = ChatSession(title=title)
+    
+    client = get_sync_client(url="http://127.0.0.1:2024")
+    thread = client.threads.create()
+    new_session.langgraph_thread_id = thread["thread_id"]
+
     db.add(new_session)
     db.commit()
     db.refresh(new_session)

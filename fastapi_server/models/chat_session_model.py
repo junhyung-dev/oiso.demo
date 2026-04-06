@@ -10,6 +10,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index = True)
+    langgraph_thread_id = mapped_column(String(255), nullable=True)
     title: Mapped[str|None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
