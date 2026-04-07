@@ -19,8 +19,17 @@ from models import store_model
 Base.metadata.create_all(bind = engine)
 
 from fastapi.middleware.cors import CORSMiddleware
+from core.storage import init_storage
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+#앱 실행 전후 동작 로직 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_storage()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
