@@ -30,7 +30,8 @@ def search_nearby_stores(tag_name: str, lat: float, lng: float, radius_km: float
     """
     # 환경변수에서 직접 DB URL을 가져오거나 테스트된 내(표선) PostgreSQL 접속 주소를 사용
     db_url = os.getenv("DATABASE_URL")
-    engine = create_engine(db_url)
+    # 연결 타임아웃 5초 설정
+    engine = create_engine(db_url, connect_args={"connect_timeout": 5})
     
     try:
         with engine.connect() as conn:

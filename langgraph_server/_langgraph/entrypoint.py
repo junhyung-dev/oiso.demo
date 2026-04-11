@@ -22,10 +22,10 @@ class AgentState(TypedDict):
     user_language: str
     enhanced_query: str  # 쿼리 강화 에이전트가 뽑아낸 단일 태그(명사) 저장칸
 
-# 2. 로컬 LLM 초기화
-model = ChatOpenAI(model="gpt-4.1-mini", temperature=0.7)
+# 2. 로컬 LLM 초기화 (타임아웃 30초 설정)
+model = ChatOpenAI(model="gpt-4.1-mini", temperature=0.7, timeout=30.0)
 # 쿼리 추출은 temperature 0 권장 (환각 최소화)
-query_model = ChatOpenAI(model="gpt-4.1-mini", temperature=0.0) 
+query_model = ChatOpenAI(model="gpt-4.1-mini", temperature=0.0, timeout=30.0) 
 
 # 툴 바인딩
 tools = [search_nearby_stores]
