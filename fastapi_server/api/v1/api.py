@@ -1,28 +1,23 @@
 from fastapi import APIRouter
-from api.v1.endpoints import bookmarks, posts, chat, upload
+from api.v1.endpoints import dx, ax, mx
 
-api_router = APIRouter()
+# ── 설계도 따라서 라우터 수정 (/v1/ 하위) ──────────────────────────────────────
+v1_router = APIRouter()
 
-api_router.include_router(
-    bookmarks.router,
-    prefix="/bookmarks",
-    tags=["bookmarks"]
+v1_router.include_router(
+    dx.router,
+    prefix="/dx",
+    tags=["dx - Data eXperience"]
 )
 
-api_router.include_router(
-    posts.router,
-    prefix="/posts",
-    tags=["posts"]
+v1_router.include_router(
+    ax.router,
+    prefix="/ax",
+    tags=["ax - AI eXperience"]
 )
 
-api_router.include_router(
-    chat.router,
-    prefix="/chat",
-    tags=["chat"]
-)
-
-api_router.include_router(
-    upload.router,
-    prefix="/upload",
-    tags=["upload"]
+v1_router.include_router(
+    mx.router,
+    prefix="/mx",
+    tags=["mx - Map eXperience"]
 )

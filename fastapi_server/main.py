@@ -6,15 +6,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "langgraph_server")))
 
 from fastapi import FastAPI
-from api.v1.api import api_router
+from api.v1.api import v1_router
 
 from db.base import Base
 from db.session import engine
 
-from models import post_model
-from models import chat_message_model
-from models import chat_session_model
-from models import store_model
+from models import store_model # LangGraph DB 연결용 유지
 
 Base.metadata.create_all(bind = engine)
 
@@ -25,7 +22,10 @@ from contextlib import asynccontextmanager
 #앱 실행 전후 동작 로직 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_storage()
+    try:
+        init_storage()
+    except Exception as e:
+        print(f"[WARNING] MinIO/S3 connection failed (server will continue): {e}")
     yield
 
 
@@ -39,7 +39,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router, prefix="/api/v1") 
+app.include_router(v1_router, prefix="/v1")          # 신버전 라우터 (dx / ax / mx)
 
 from fastapi.staticfiles import StaticFiles
 import os
