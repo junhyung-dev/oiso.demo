@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import List
-
+from schemas.base_schema import BaseSuccessResponse
 
 # ─── /v1/ax/chat ────────────────────────────────────────────────
 
@@ -9,7 +9,7 @@ class ChatV2Request(BaseModel):
     user_added_message: str    # 유저 메시지
 
 
-class ChatV2Response(BaseModel):
+class ChatV2Response(BaseSuccessResponse):
     response: str              # AI 응답 텍스트 (또는 성공/실패 메시지)
 
 
@@ -28,6 +28,5 @@ class OCRInformation(BaseModel):
     original_language: str
 
 
-class PicNOrderResponse(BaseModel):
-    response: str
+class PicNOrderResponse(BaseSuccessResponse):
     ocr_structure: OCRInformation | None = None

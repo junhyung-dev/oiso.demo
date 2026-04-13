@@ -12,7 +12,7 @@ from schemas.ax_schema import (
 router = APIRouter()
 
 
-@router.post("/chat", response_model=ChatV2Response)
+@router.post("/get_chat_completion", response_model=ChatV2Response)
 async def chat_v2(request: ChatV2Request):
     """
     유저 메시지를 LangGraph Chat Agent로 전달하고 AI 응답을 반환합니다.
@@ -28,7 +28,7 @@ async def chat_v2(request: ChatV2Request):
     return ChatV2Response(response=dummy_reply)
 
 
-@router.post("/pic_n_order", response_model=PicNOrderResponse)
+@router.post("/get_picnorder", response_model=PicNOrderResponse)
 async def pic_n_order(
     uuid: str = Form(...),
     user_language: str = Form(...),
@@ -54,6 +54,5 @@ async def pic_n_order(
         ],
     )
     return PicNOrderResponse(
-        response="success (dummy)",
-        ocr_structure=dummy_ocr,
+        ocr_structure=dummy_ocr
     )
