@@ -5,7 +5,17 @@ load_dotenv()
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "langgraph_server")))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
+
+from exceptions.base import AppException
+from exceptions.handlers import (
+    app_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+    unexpected_exception_handler,
+)
+
 from api.v1.api import v1_router
 
 from db.base import Base
@@ -40,6 +50,11 @@ app.add_middleware(
 )
 
 app.include_router(v1_router, prefix="/v1")          # 신버전 라우터 (dx / ax / mx)
+
+app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, unexpected_exception_handler)
 
 from fastapi.staticfiles import StaticFiles
 import os

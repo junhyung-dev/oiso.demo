@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import List
-
+from schemas.base_schema import BaseSuccessResponse
 
 # ─── /v1/mx/get_markers ─────────────────────────────────────────
 
@@ -12,8 +12,7 @@ class MarkerItem(BaseModel):
     cluster_pics_lowres_url: str  # MinIO URL (lowres 이미지)
 
 
-class GetMarkersResponse(BaseModel):
-    response: str
+class GetMarkersResponse(BaseSuccessResponse):
     markers: List[MarkerItem]
 
 
@@ -25,6 +24,5 @@ class PostItem(BaseModel):
     pic_highres_url: str          # MinIO URL (highres 이미지)
 
 
-class MarkerInfosResponse(BaseModel):
-    response: str
+class MarkerInfosResponse(BaseSuccessResponse):
     posts: List[PostItem]
