@@ -3,7 +3,9 @@
     "."
   ],
   "graphs": {
-    "agent": "./_langgraph/entrypoint.py:app"
+    "chat_agent": "./graphs/chat_agent.py:graph",
+    "ocr_agent": "./graphs/ocr_agent.py:graph",
+    "summary_agent": "./graphs/summary_agent.py:graph"
   },
-  "env": "../fastapi_server/.env"
+  "env": ".env"
 }
