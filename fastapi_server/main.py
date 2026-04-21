@@ -21,7 +21,7 @@ from api.v1.api import v1_router
 from db.base import Base
 from db.session import engine
 
-from models import store_model # LangGraph DB 연결용 유지
+from models import mx_model
 
 Base.metadata.create_all(bind = engine)
 

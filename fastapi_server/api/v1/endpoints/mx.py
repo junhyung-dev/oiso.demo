@@ -1,23 +1,28 @@
-from fastapi import APIRouter, Query
-from typing import Optional
-
+from fastapi import APIRouter, Query, Depends
+from typing import Annotated
+from db.session import get_db
+from sqlalchemy.orm import Session
 from schemas.mx_schema import (
     GetMarkersResponse,
     MarkerItem,
     MarkerInfosResponse,
     PostItem,
 )
+from services import mx_services
 
 router = APIRouter()
 
+
+db_session = Annotated[Session, Depends(get_db)]
 
 @router.get("/get_markers", response_model=GetMarkersResponse)
 async def get_markers(
     user_long: float = Query(..., description="유저 현재 경도"),
     user_lat: float = Query(..., description="유저 현재 위도"),
     screen_topleft: str = Query(..., description="화면 좌상단 위경도 (예: '35.9,128.5')"),
-    screen_topright: str = Query(..., description="화면 우하단 위경도 (예: '35.8,128.6')"),
+    screen_bottomright: str = Query(..., description="화면 우하단 위경도 (예: '35.8,128.6')"),
     nearmode: bool = Query(True, description="True: 범위 내 없으면 빈 배열 / False: 가장 가까운 것 반환"),
+    db: db_session = None,
 ):
     """
     현재 지도 화면 범위 내의 클러스터 마커 목록을 반환합니다.
@@ -26,16 +31,10 @@ async def get_markers(
     - 추후: PostgreSQL ClusterArray/TagList 조회 + MinIO lowres 이미지 URL 반환
     """
     # TODO: bounding box 파싱 → ClusterArray/TagList DB 조회 → MinIO URL 반환
-    dummy_markers = [
-        MarkerItem(
-            longitude=str(user_long + 0.001),
-            latitude=str(user_lat + 0.001),
-            cluster_no=1,
-            cluster_tags=["더미태그1", "더미태그2"],
-            cluster_pics_lowres_url="http://localhost:9000/images/dummy_lowres.jpg",
-        )
-    ]
-    return GetMarkersResponse(response="success (dummy)", markers=dummy_markers)
+
+    markers = mx_services.get_markers(db=db, user_lng=user_long, user_lat=user_lat, screen_topleft=screen_topleft, screen_bottomright=screen_bottomright, nearmode=nearmode)
+    
+    return GetMarkersResponse(markers=markers)
 
 
 @router.get("/marker_infos", response_model=MarkerInfosResponse)
