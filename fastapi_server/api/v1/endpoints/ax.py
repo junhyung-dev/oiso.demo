@@ -1,5 +1,5 @@
 from fastapi import APIRouter, File, UploadFile, Form
-from typing import List
+from typing import List, Annotated
 
 from schemas.ax_schema import (
     ChatV2Request,
@@ -8,6 +8,9 @@ from schemas.ax_schema import (
     OCRInformation,
     PicNOrderResponse,
 )
+
+import base64
+from services import ax_services
 
 router = APIRouter()
 
@@ -30,29 +33,26 @@ async def chat_v2(request: ChatV2Request):
 
 @router.post("/get_picnorder", response_model=PicNOrderResponse)
 async def pic_n_order(
-    uuid: str = Form(...),
-    user_language: str = Form(...),
-    pics: List[UploadFile] = File(...),
+    uuid: Annotated[str, Form(...)],
+    user_language: Annotated[str, Form(...)],
+    pics: Annotated[list[UploadFile], File(...)],
 ):
     """
     메뉴판 사진을 OCR Agent로 전달하여 구조화된 메뉴 정보를 반환합니다.
 
-    - 현재: 더미 OCR 결과 반환
-    - 추후: 이미지 base64 인코딩 → LangGraph OCR Agent 요청 → OCRInformation 파싱
+    - 현재: 첫번째 이미지만 가능
+    - 추후: List[UploadFile] 잘 반영하도록
     """
     # TODO: 이미지 base64 인코딩 → LangGraph OCR Agent 요청
-    dummy_ocr = OCRInformation(
-        user_language=user_language,
-        original_language="ko",
-        menus=[
-            MenuInformation(
-                number=1,
-                text_in_original_language="더미 메뉴",
-                text_in_user_language="Dummy Menu",
-                price=10000,
-            )
-        ],
-    )
+
+    # 이미지를 base64로 변환
+    pic = pics[0] # 나중에 수정필요
+    image_bytes = await pic.read() # uploadfile -> bytes로
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8") # bytes -> base64 문자열
+
+    ocr_result = await ax_services.run_ocr_agent(image_b64, user_language)
+
+    
     return PicNOrderResponse(
-        ocr_structure=dummy_ocr
+        ocr_structure=OCRInformation(**ocr_result) # dict형식을 pydantic 모델로 변환해주어야함
     )
