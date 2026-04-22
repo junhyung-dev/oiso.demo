@@ -37,9 +37,10 @@ async def get_markers(
     return GetMarkersResponse(markers=markers)
 
 
-@router.get("/marker_infos", response_model=MarkerInfosResponse)
+@router.get("/get_marker_infos", response_model=MarkerInfosResponse)
 async def marker_infos(
     cluster_no: int = Query(..., description="조회할 클러스터 번호"),
+    db: db_session = None
 ):
     """
     특정 클러스터 번호에 해당하는 게시물(사진+태그) 목록을 반환합니다.
@@ -48,11 +49,5 @@ async def marker_infos(
     - 추후: ClusterArray → TagList → Picture 조회 + MinIO highres 이미지 URL 반환
     """
     # TODO: ClusterArray 조회 → Picture 목록 → MinIO highres URL 반환
-    dummy_posts = [
-        PostItem(
-            image_no=1,
-            image_tags=["더미태그1", "더미태그2"],
-            pic_highres_url="http://localhost:9000/images/dummy_highres.jpg",
-        )
-    ]
-    return MarkerInfosResponse(response="success (dummy)", posts=dummy_posts)
+    posts = mx_services.get_markers_infos(db=db, cluster_no=cluster_no)
+    return MarkerInfosResponse(posts=posts)

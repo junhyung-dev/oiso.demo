@@ -3,10 +3,11 @@ from sqlalchemy.orm import Session
 from typing import Tuple
 
 #커스텀 예외
-from exceptions.http import BadRequestException, StorageException
+from exceptions.http import NotFoundException
 from sqlalchemy import select, and_
 from models.mx_model import ClusterArray
-from schemas.mx_schema import MarkerItem
+from schemas.mx_schema import MarkerItem, PostItem
+
 
 
 def parse_latlng(value: str) -> Tuple[float,float]:
@@ -59,6 +60,13 @@ def get_closest_cluster(db: Session, user_lat: float, user_lng: float):
 
     return closest_cluster
 
+def get_cluster_by_no(db: Session, cluster_no: int):
+    """
+    cluster_no로 cluster 정보를 가져옴
+    """
+    cluster = db.get(ClusterArray, cluster_no)
+    return cluster
+
 
 def get_markers(db: Session, user_lng: float, user_lat: float, screen_topleft: str, screen_bottomright: str, nearmode: bool) -> str:
     """
@@ -108,5 +116,31 @@ def get_markers(db: Session, user_lng: float, user_lat: float, screen_topleft: s
     return markers
 
 
+def get_markers_infos(db: Session, cluster_no: int) -> str:
+    """
+    각 마커에 대한 세부 정보를 볼 수 있도록 한다.
+    """
 
+    # cluster 가져오기
+    cluster = get_cluster_by_no(db, cluster_no)
+
+    # cluster가 없다면
+    if not cluster:
+        raise NotFoundException(reason=f"cluster_no:{cluster_no}에 대한 정보가 없습니다.")
+    
+    # 있으면 response body조립
+    posts = []
+    # 클러스터에 연결된 사진들을 통해 PostItem 조립
+    for picture in cluster.pictures:
+        tags = [tag.tagstring for tag in picture.tags]
+        dummy_highres_url = f"http://dummy.com/{picture.pic_name}"
+
+        post = PostItem(
+            image_no=picture.uniqueid,
+            image_tags=tags,
+            pic_highres_url=dummy_highres_url
+        )
+        posts.append(post)
+
+    return posts
         
