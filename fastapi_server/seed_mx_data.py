@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-from db.session import SessionLocal
+from db.session import get_db
 from models.mx_model import (
     ClusterArray,
     ClusterPicture,
@@ -17,7 +17,7 @@ from models.mx_model import (
 )
 
 
-DEFAULT_DATA_DIR = Path.home() / "Downloads" / "DB_FOR_BACK"
+DEFAULT_DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
@@ -61,7 +61,7 @@ def seed_mx_data(data_dir: Path) -> None:
     tag_names = read_tag_names(all_tags_path)
     tag_names.update(row["pic_tag"] for row in picture_tag_rows if row.get("pic_tag"))
 
-    db = SessionLocal()
+    db = next(get_db())
     try:
         reset_mx_tables(db)
 

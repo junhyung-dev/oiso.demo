@@ -6,7 +6,7 @@ from core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# 전역 변수로 엔진과 세션 메이커 선언 (Lazy Initialization)
+# 전역 변수로 엔진과 세션 메이커 선언
 _engine = None
 _SessionLocal = None
 
@@ -18,10 +18,10 @@ def get_engine():
         # 배포 환경을 위한 연결 풀링 최적화
         _engine = create_engine(
             settings.DATABASE_URL,
-            pool_pre_ping=True,  # 커넥션 사용 전 ping을 날려 유효성 검사 (RDS 재부팅 시 방어)
-            pool_recycle=3600,   # 1시간마다 커넥션 초기화 (타임아웃 방지)
-            pool_size=10,        # 기본 동시 연결 풀 크기
-            max_overflow=20      # 최대 초과 허용 연결 수
+            pool_pre_ping=True,  
+            pool_recycle=3600,   
+            pool_size=10,        
+            max_overflow=20      
         )
         
         _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
@@ -52,4 +52,4 @@ def get_db():
     try:
         yield db
     finally:
-        db.close()
+        db.close()
