@@ -30,7 +30,7 @@ def get_bucket_name() -> str:
 def init_storage():
     
     s3_client = get_s3_client()
-    bucket_name = settings.MINIO_BUCKET_NAME
+    bucket_name = get_bucket_name()
     
     try:
         s3_client.head_bucket(Bucket=bucket_name)
