@@ -1,10 +1,7 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
-from pathlib import Path
-from uuid import uuid4
+from fastapi import APIRouter, File, UploadFile
 
 from schemas.dx_schema import PicUploadResponse
-from core.config import settings
-from core.storage import get_s3_client
+
 from services import dx_services
 
 router = APIRouter()
@@ -19,10 +16,10 @@ async def upload_picture(image: UploadFile = File(...)):
     - 추후: lowres/highres 버전 생성 + DB 저장 + Redis 큐 적재
     """
 
-    picture_url = dx_services.upload_picture(image)
+    result = dx_services.upload_picture(image)
 
     #성공한 응답만 반환함
     #핵심: picuploadrespons가 BaseSuccessResponse를 상속받았으므로 success=True가 자동 삽입됨
-    return PicUploadResponse(picture_url=picture_url)
+    return PicUploadResponse(**result)
 
     

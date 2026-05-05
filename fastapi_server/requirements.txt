@@ -10,3 +10,4 @@ langgraph-sdk
 python-multipart
 alembic
 httpx
+Pillow
