@@ -3,7 +3,9 @@ from uuid import uuid4
 from fastapi import UploadFile
 from core.config import settings
 from core.storage import get_s3_client, get_bucket_name
+from botocore.client import BaseClient
 
+DEFAULT_PRESIGNED_URL_EXPIRES_IN = 60 * 10
 
 #커스텀 예외
 from exceptions.http import BadRequestException, StorageException
@@ -91,8 +93,24 @@ def build_picture_url(bucket_name: str, s3_key: str) -> str:
     if settings.MINIO_ENDPOINT_URL:
         return f"{settings.MINIO_ENDPOINT_URL}/{bucket_name}/{s3_key}"
 
-    # S3 정책에 따라 추후 presigned URL 또는 public URL로 조정
     return f"https://{bucket_name}.s3.{settings.AWS_REGION}.amazonaws.com/{s3_key}"
+
+
+def build_presigned_picture_url(
+    s3_client: BaseClient,
+    bucket_name: str,
+    s3_key: str,
+    expires_in: int = DEFAULT_PRESIGNED_URL_EXPIRES_IN,
+) -> str:
+    # presigned 방식
+    return s3_client.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={
+            "Bucket": bucket_name,
+            "Key": s3_key,
+        },
+        ExpiresIn=expires_in,
+    )
 
 
 def upload_picture(image: UploadFile) -> dict:
@@ -129,12 +147,18 @@ def upload_picture(image: UploadFile) -> dict:
 
         s3_version = None
         s3_uri = f"s3://{bucket_name}/{s3_key}"
-        # 접근 가능한 URL 생성: {endpoint}/{bucket}/{key}
-        picture_url = build_picture_url(bucket_name, s3_key)
+        
+
+        picture_url = build_presigned_picture_url(
+            s3_client=s3_client,
+            bucket_name=bucket_name,
+            s3_key=s3_key,
+            )
 
 
 
         return {
+            # picture_url은 프론트 미리보기용, DB저장 X
             "picture_url": picture_url,
             "s3_bucket": bucket_name,
             "s3_key": s3_key,
