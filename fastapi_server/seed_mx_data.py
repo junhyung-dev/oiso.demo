@@ -1,3 +1,11 @@
+"""
+Seed 스크립트: 새 CSV 파일 → DB warm start
+
+사용법:
+    python seed_mx_data.py
+    python seed_mx_data.py --data-dir ./data
+"""
+
 import argparse
 import csv
 import sys
@@ -8,12 +16,13 @@ sys.path.append(str(Path(__file__).resolve().parent))
 from db.session import get_db
 from models.mx_model import (
     ClusterArray,
-    ClusterPicture,
-    ClusterTag,
+    Image,
     Metadata,
+    PerPicTags,
     Picture,
-    PictureTag,
+    PictureList,
     Tag,
+    TagList,
 )
 
 
@@ -25,23 +34,20 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(csv_file))
 
 
-def read_tag_names(path: Path) -> set[str]:
+def read_single_column(path: Path, column: str) -> list[str]:
+    """헤더가 있는 단일 컬럼 CSV 읽기"""
     with path.open("r", encoding="utf-8-sig", newline="") as csv_file:
-        return {line.strip() for line in csv_file if line.strip()}
+        reader = csv.DictReader(csv_file)
+        return [row[column].strip() for row in reader if row.get(column, "").strip()]
 
 
-def get_serving_pic_name(pic_name: str) -> str:
-    path = Path(pic_name)
-    if path.suffix.lower() == ".heic":
-        return f"{path.stem}.jpg"
-    return pic_name
-
-
-def reset_mx_tables(db) -> None:
-    db.query(ClusterTag).delete()
-    db.query(PictureTag).delete()
-    db.query(ClusterPicture).delete()
+def reset_all_tables(db) -> None:
+    """FK 의존성 순서에 맞춰 전체 삭제"""
+    db.query(TagList).delete()
+    db.query(PerPicTags).delete()
+    db.query(PictureList).delete()
     db.query(Picture).delete()
+    db.query(Image).delete()
     db.query(Metadata).delete()
     db.query(ClusterArray).delete()
     db.query(Tag).delete()
@@ -49,114 +55,137 @@ def reset_mx_tables(db) -> None:
 
 
 def seed_mx_data(data_dir: Path) -> None:
-    groups_path = data_dir / "groups.csv"
-    pics_path = data_dir / "pics.csv"
-    tags_path = data_dir / "tags.csv"
-    all_tags_path = data_dir / "all_tags.csv"
+    # ─── CSV 파일 경로 ───────────────────────────────────────
+    tag_path = data_dir / "tag.csv"
+    cluster_path = data_dir / "cluster_array.csv"
+    image_path = data_dir / "image.csv"
+    metadata_path = data_dir / "metadata.csv"
+    picture_path = data_dir / "picture.csv"
+    per_pic_tags_path = data_dir / "per_pic_tags.csv"
+    picture_list_path = data_dir / "picture_list.csv"
+    tag_list_path = data_dir / "tag_list.csv"
 
-    groups = read_csv_rows(groups_path)
-    pics = read_csv_rows(pics_path)
-    picture_tag_rows = read_csv_rows(tags_path)
-
-    tag_names = read_tag_names(all_tags_path)
-    tag_names.update(row["pic_tag"] for row in picture_tag_rows if row.get("pic_tag"))
+    # ─── CSV 읽기 ────────────────────────────────────────────
+    tag_names = read_single_column(tag_path, "tag_string")
+    clusters = read_csv_rows(cluster_path)
+    images = read_csv_rows(image_path)
+    metadata_rows = read_csv_rows(metadata_path)
+    pictures = read_csv_rows(picture_path)
+    per_pic_tags = read_csv_rows(per_pic_tags_path)
+    picture_list = read_csv_rows(picture_list_path)
+    tag_list = read_csv_rows(tag_list_path)
 
     db = next(get_db())
     try:
-        reset_mx_tables(db)
+        reset_all_tables(db)
 
+        # 1) Tag
         db.add_all(
-            Tag(tagstring=tag_name)
-            for tag_name in sorted(tag_names)
+            Tag(tag_string=name)
+            for name in sorted(set(tag_names))
         )
         db.flush()
+        print(f"  tags: {len(set(tag_names))}")
 
+        # 2) ClusterArray
         db.add_all(
             ClusterArray(
-                clusterno=int(row["group_no"]),
+                cluster_no=int(row["cluster_no"]),
                 longitude=float(row["centric_point_long"]),
                 latitude=float(row["centric_point_lat"]),
             )
-            for row in groups
+            for row in clusters
         )
         db.flush()
+        print(f"  clusters: {len(clusters)}")
 
+        # 3) Image
+        db.add_all(
+            Image(
+                unique_id=row["unique_id"],
+                s3_bucket=row["s3_bucket"] or None,
+                s3_key=row["s3_key"] or None,
+                s3_version=row["s3_version"] or None,
+            )
+            for row in images
+        )
+        db.flush()
+        print(f"  images: {len(images)}")
+
+        # 4) Metadata
         db.add_all(
             Metadata(
-                uniqueid=int(row["pic_no"]),
-                longitude=float(row["centric_point_long"]),
-                latitude=float(row["centric_point_lat"]),
-                timestamp=None,
+                unique_id=row["unique_id"],
+                longitude=float(row["longitude"]) if row["longitude"] else None,
+                latitude=float(row["latitude"]) if row["latitude"] else None,
+                time_stamp=row["time_stamp"] or None,
             )
-            for row in pics
+            for row in metadata_rows
         )
         db.flush()
+        print(f"  metadata: {len(metadata_rows)}")
 
+        # 5) Picture
         db.add_all(
             Picture(
-                uniqueid=int(row["pic_no"]),
-                pic_name=row["pic_name"],
-                serving_pic_name=get_serving_pic_name(row["pic_name"]),
-                created_date=None,
-                metadata_id=int(row["pic_no"]),
+                unique_id=row["unique_id"],
+                created_date=row["created_date"] or None,
+                image_id=row["image_id"] or None,
+                metadata_id=row["metadata_id"] or None,
             )
-            for row in pics
+            for row in pictures
         )
         db.flush()
+        print(f"  pictures: {len(pictures)}")
 
+        # 6) PictureList (cluster ↔ picture)
         db.add_all(
-            ClusterPicture(
-                cluster_no=int(row["group_no"]),
-                pic_no=int(row["pic_no"]),
+            PictureList(
+                cluster_no=int(row["cluster_no"]),
+                pic_no=row["pic_no"],
             )
-            for row in pics
+            for row in picture_list
         )
         db.flush()
+        print(f"  picture_list: {len(picture_list)}")
 
-        seen_picture_tags: set[tuple[int, str]] = set()
-        picture_tags = []
-        for row in picture_tag_rows:
-            pic_no = int(row["pic_no"])
-            tag = row["pic_tag"]
+        # 7) PerPicTags (picture ↔ tag)
+        seen: set[tuple[str, str]] = set()
+        pic_tags = []
+        for row in per_pic_tags:
+            uid = row["unique_id"]
+            tag = row["tag"]
             if not tag:
                 continue
-            key = (pic_no, tag)
-            if key in seen_picture_tags:
+            key = (uid, tag)
+            if key in seen:
                 continue
-            seen_picture_tags.add(key)
-            picture_tags.append(PictureTag(pic_no=pic_no, tag=tag))
+            seen.add(key)
+            pic_tags.append(PerPicTags(unique_id=uid, tag=tag))
 
-        db.add_all(picture_tags)
+        db.add_all(pic_tags)
         db.flush()
+        print(f"  per_pic_tags: {len(pic_tags)}")
 
-        pic_to_cluster = {
-            int(row["pic_no"]): int(row["group_no"])
-            for row in pics
-        }
-
-        cluster_tag_keys: set[tuple[int, str]] = set()
-        for row in picture_tag_rows:
-            pic_no = int(row["pic_no"])
-            tag = row["pic_tag"]
+        # 8) TagList (cluster ↔ tag)
+        seen_ct: set[tuple[int, str]] = set()
+        cluster_tags = []
+        for row in tag_list:
+            cno = int(row["cluster_no"])
+            tag = row["tag"]
             if not tag:
                 continue
-            cluster_no = pic_to_cluster[pic_no]
-            cluster_tag_keys.add((cluster_no, tag))
-
-        cluster_tags = [
-            ClusterTag(cluster_no=cluster_no, tag=tag)
-            for cluster_no, tag in sorted(cluster_tag_keys)
-        ]
+            key = (cno, tag)
+            if key in seen_ct:
+                continue
+            seen_ct.add(key)
+            cluster_tags.append(TagList(cluster_no=cno, tag=tag))
 
         db.add_all(cluster_tags)
         db.commit()
+        print(f"  tag_list: {len(cluster_tags)}")
 
-        print("MX seed completed.")
-        print(f"- tags: {len(tag_names)}")
-        print(f"- clusters: {len(groups)}")
-        print(f"- pictures: {len(pics)}")
-        print(f"- picture_tags: {len(picture_tags)}")
-        print(f"- cluster_tags: {len(cluster_tags)}")
+        print("\nSeed completed successfully!")
 
     except Exception:
         db.rollback()
@@ -166,12 +195,12 @@ def seed_mx_data(data_dir: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed mx map data from CSV files.")
+    parser = argparse.ArgumentParser(description="Seed map data from CSV files.")
     parser.add_argument(
         "--data-dir",
         type=Path,
         default=DEFAULT_DATA_DIR,
-        help="Directory containing groups.csv, pics.csv, tags.csv, and all_tags.csv.",
+        help="Directory containing the new CSV files.",
     )
     args = parser.parse_args()
 

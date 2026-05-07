@@ -58,3 +58,19 @@ def init_storage():
             ]
         }
         s3_client.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
+
+def generate_image_url(s3_key: str, expires_in: int = 600) -> str:
+    """환경에 따라 이미지 URL을 생성"""
+    bucket = get_bucket_name()
+
+    if settings.MINIO_ENDPOINT_URL:
+        # MinIO: Public Read 정책이 설정되어 있으므로 직접 URL 반환
+        return f"{settings.MINIO_ENDPOINT_URL}/{bucket}/{s3_key}"
+    else:
+        # S3: presigned URL 생성
+        s3_client = get_s3_client()
+        return s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": s3_key},
+            ExpiresIn=expires_in,
+        )

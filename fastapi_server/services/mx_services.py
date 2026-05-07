@@ -7,7 +7,7 @@ from exceptions.http import NotFoundException
 from sqlalchemy import select, and_
 from models.mx_model import ClusterArray
 from schemas.mx_schema import MarkerItem, PostItem
-
+from core.storage import generate_image_url
 
 
 def parse_latlng(value: str) -> Tuple[float,float]:
@@ -36,7 +36,7 @@ def get_clusters_in_bbox(db: Session, min_lng: float, max_lng: float, min_lat: f
             ClusterArray.latitude >= min_lat,
             ClusterArray.latitude <= max_lat,
             ClusterArray.longitude >= min_lng,
-            ClusterArray.longitude <= max_lng
+            ClusterArray.longitude <= max_lng,
         )
     )
 
@@ -68,9 +68,9 @@ def get_cluster_by_no(db: Session, cluster_no: int):
     return cluster
 
 
-def get_markers(db: Session, user_lng: float, user_lat: float, screen_topleft: str, screen_bottomright: str, nearmode: bool) -> str:
+def get_markers(db: Session, user_lng: float, user_lat: float, screen_topleft: str, screen_bottomright: str, nearmode: bool) -> list:
     """
-    이미지를 S3(MinIO)에 업로드하고 URL 반환
+    화면 bounding box 내의 클러스터 마커 목록을 반환
     """
 
     # screen_topleft, screen_bottomright 파싱 -> bounding box
@@ -97,19 +97,19 @@ def get_markers(db: Session, user_lng: float, user_lat: float, screen_topleft: s
     #가져온 cluster들을 for문 돌면서 marker로 조립
     for cluster in clusters:
 
-        string_tags = [tag.tagstring for tag in cluster.tags]
+        string_tags = [tag.tag_string for tag in cluster.tags]
 
-        #URL은 아직 더미로
-        dummy_url = "http://dummy.com/dummy.jpg"
+        #URL
+        first_pic = cluster.pictures[0] if cluster.pictures else None
+        lowres_url = generate_image_url(first_pic.image.s3_key) if (first_pic and first_pic.image) else ""
 
         marker = MarkerItem(
             longitude=str(cluster.longitude),
             latitude=str(cluster.latitude),
-            cluster_no=cluster.clusterno,
+            cluster_no=cluster.cluster_no,
             cluster_tags=string_tags,
-            cluster_pics_lowres_url=dummy_url,
+            cluster_pics_lowres_url=lowres_url,
         )
-
 
         markers.append(marker)
     
@@ -132,15 +132,15 @@ def get_markers_infos(db: Session, cluster_no: int) -> str:
     posts = []
     # 클러스터에 연결된 사진들을 통해 PostItem 조립
     for picture in cluster.pictures:
-        tags = [tag.tagstring for tag in picture.tags]
-        dummy_highres_url = f"http://dummy.com/{picture.pic_name}"
+        tags = [tag.tag_string for tag in picture.tags]
+        pic_url = generate_image_url(picture.image.s3_key) if picture.image else ""
 
         post = PostItem(
-            image_no=picture.uniqueid,
+            image_id=picture.unique_id,
             image_tags=tags,
-            pic_highres_url=dummy_highres_url
+            pic_highres_url=pic_url,
         )
         posts.append(post)
 
     return posts
-        
+

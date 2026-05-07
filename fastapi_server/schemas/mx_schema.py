@@ -19,7 +19,7 @@ class GetMarkersResponse(BaseSuccessResponse):
 # ─── /v1/mx/marker_infos ─────────────────────────────────────────
 
 class PostItem(BaseModel):
-    image_no: int
+    image_id: str
     image_tags: List[str]
     pic_highres_url: str          # MinIO URL (highres 이미지)
 
