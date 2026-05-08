@@ -1,11 +1,11 @@
 from core.config import settings
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import Tuple
 
 #커스텀 예외
 from exceptions.http import NotFoundException
 from sqlalchemy import select, and_
-from models.mx_model import ClusterArray
+from models.mx_model import ClusterArray, Picture
 from schemas.mx_schema import MarkerItem, PostItem
 from core.storage import generate_image_url
 
@@ -31,12 +31,23 @@ def get_clusters_in_bbox(db: Session, min_lng: float, max_lng: float, min_lat: f
     """
     Bounding Box 범위 내의 클러스터를 모두 가져오는 쿼리
     """
-    stmt = select(ClusterArray).where(
-        and_(
-            ClusterArray.latitude >= min_lat,
-            ClusterArray.latitude <= max_lat,
-            ClusterArray.longitude >= min_lng,
-            ClusterArray.longitude <= max_lng,
+    stmt = (
+        select(ClusterArray)
+        .options(
+            # cluster.tags를 클러스터마다 따로 조회하지 않고 한 번에 로딩
+            selectinload(ClusterArray.tags),
+
+            # cluster.pictures를 한 번에 로딩하고,
+            # 각 picture.image도 추가로 한 번에 로딩
+            selectinload(ClusterArray.pictures).selectinload(Picture.image),
+        )
+        .where(
+            and_(
+                ClusterArray.latitude >= min_lat,
+                ClusterArray.latitude <= max_lat,
+                ClusterArray.longitude >= min_lng,
+                ClusterArray.longitude <= max_lng,
+            )
         )
     )
 
@@ -55,7 +66,15 @@ def get_closest_cluster(db: Session, user_lat: float, user_lng: float):
 
     distance_expr = lat_diff * lat_diff + lng_diff * lng_diff
 
-    stmt = select(ClusterArray).order_by(distance_expr)
+    stmt = (
+        select(ClusterArray)
+        .options(
+            selectinload(ClusterArray.tags),
+            selectinload(ClusterArray.pictures).selectinload(Picture.image),
+        )
+        .order_by(distance_expr)
+        .limit(1)
+    )
     closest_cluster = db.execute(stmt).scalars().first()
 
     return closest_cluster
@@ -64,7 +83,17 @@ def get_cluster_by_no(db: Session, cluster_no: int):
     """
     cluster_no로 cluster 정보를 가져옴
     """
-    cluster = db.get(ClusterArray, cluster_no)
+    stmt = (
+        select(ClusterArray)
+        .options(
+            selectinload(ClusterArray.pictures).selectinload(Picture.tags),
+            selectinload(ClusterArray.pictures).selectinload(Picture.image),
+        )
+        .where(ClusterArray.cluster_no == cluster_no)
+    )
+
+
+    cluster = db.execute(stmt).scalars().first()
     return cluster
 
 

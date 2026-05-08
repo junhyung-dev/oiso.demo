@@ -16,7 +16,7 @@ router = APIRouter()
 db_session = Annotated[Session, Depends(get_db)]
 
 @router.get("/get_markers", response_model=GetMarkersResponse)
-async def get_markers(
+def get_markers(
     user_long: float = Query(..., description="유저 현재 경도"),
     user_lat: float = Query(..., description="유저 현재 위도"),
     screen_topleft: str = Query(..., description="화면 좌상단 위경도 (예: '35.9,128.5')"),
@@ -38,7 +38,7 @@ async def get_markers(
 
 
 @router.get("/get_marker_infos", response_model=MarkerInfosResponse)
-async def marker_infos(
+def marker_infos(
     cluster_no: int = Query(..., description="조회할 클러스터 번호"),
     db: db_session = None
 ):

@@ -27,6 +27,10 @@ from exceptions.handlers import (
 )
 from models import mx_model
 
+import time
+import logging
+from fastapi import Request
+
 # Database initialization -> Alembic으로 대체
 # try:
 #     Base.metadata.create_all(bind=engine)
@@ -53,6 +57,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+
+logger = logging.getLogger("api_timing")
+
+@app.middleware("http")
+async def log_request_time(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+
+    logger.info(
+        "%s %s -> %s %.2fms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+    )
+
+    response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.2f}"
+    return response
+
 
 # Exception handlers
 app.add_exception_handler(AppException, app_exception_handler)
