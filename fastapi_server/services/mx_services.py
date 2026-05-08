@@ -4,7 +4,7 @@ from typing import Tuple
 
 #커스텀 예외
 from exceptions.http import NotFoundException
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, text
 from models.mx_model import ClusterArray, Picture
 from schemas.mx_schema import MarkerItem, PostItem
 from core.storage import generate_image_url
@@ -42,12 +42,16 @@ def get_clusters_in_bbox(db: Session, min_lng: float, max_lng: float, min_lat: f
             selectinload(ClusterArray.pictures).selectinload(Picture.image),
         )
         .where(
-            and_(
-                ClusterArray.latitude >= min_lat,
-                ClusterArray.latitude <= max_lat,
-                ClusterArray.longitude >= min_lng,
-                ClusterArray.longitude <= max_lng,
+            text(
+                "cluster_array.geom && "
+                "ST_MakeEnvelope(:min_lng, :min_lat, :max_lng, :max_lat, 4326)"
             )
+        )
+        .params(
+            min_lng=min_lng,
+            min_lat=min_lat,
+            max_lng=max_lng,
+            max_lat=max_lat,
         )
     )
 
@@ -61,19 +65,23 @@ def get_closest_cluster(db: Session, user_lat: float, user_lng: float):
     """
     # 유저 위치(user_lat, user_long)와 가장 가까운 클러스터 1개 가져오기
 
-    lat_diff = ClusterArray.latitude - user_lat
-    lng_diff = ClusterArray.longitude - user_lng
-
-    distance_expr = lat_diff * lat_diff + lng_diff * lng_diff
-
     stmt = (
         select(ClusterArray)
         .options(
             selectinload(ClusterArray.tags),
             selectinload(ClusterArray.pictures).selectinload(Picture.image),
         )
-        .order_by(distance_expr)
+        .order_by(
+            text(
+                "cluster_array.geom <-> "
+                "ST_SetSRID(ST_MakePoint(:user_lng, :user_lat), 4326)"
+            )
+        )
         .limit(1)
+        .params(
+            user_lng=user_lng,
+            user_lat=user_lat,
+        )
     )
     closest_cluster = db.execute(stmt).scalars().first()
 
